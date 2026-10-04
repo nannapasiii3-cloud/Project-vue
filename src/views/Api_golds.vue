@@ -1,22 +1,33 @@
 <template>
-  <!-- container ของ Bootstrap ใช้จัด layout -->
   <div class="container my-5">
 
     <!-- หัวข้อ -->
-    <h2 class="text-center mb-4">💰 ราคาทองวันนี้</h2>
+    <h2 class="text-center mb-4">
+      💰 ราคาทองวันนี้
+    </h2>
 
-    <!-- ปุ่มกดเพื่อดึงข้อมูลใหม่ -->
+    <!-- ปุ่มอัปเดต -->
     <div class="text-center mb-3">
-      <!-- @click = event เมื่อกดปุ่ม -->
-      <button class="btn btn-primary" @click="fetchGold">
-        🔄 อัปเดต
+      <button
+        class="btn btn-primary"
+        @click="fetchGold"
+        :disabled="loading"
+      >
+        {{ loading ? 'กำลังโหลด...' : '🔄 อัปเดตราคาทอง' }}
       </button>
     </div>
 
-    <!-- ตารางแสดงข้อมูล -->
-    <table class="table table-bordered table-striped text-center">
+    <!-- แสดงข้อความ Error -->
+    <div
+      v-if="errorMessage"
+      class="alert alert-danger text-center"
+    >
+      {{ errorMessage }}
+    </div>
 
-      <!-- ส่วนหัวตาราง -->
+    <!-- ตาราง -->
+    <table class="table table-bordered table-striped text-center align-middle">
+
       <thead class="table-dark">
         <tr>
           <th>ประเภททอง</th>
@@ -25,76 +36,138 @@
         </tr>
       </thead>
 
-      <!-- ส่วนข้อมูล -->
       <tbody>
-        <!-- v-for ใช้วนลูปข้อมูลใน golds -->
-        <tr v-for="item in golds" :key="item.name">
-          
-          <!-- แสดงชื่อทอง -->
-          <td>{{ item.name }}</td>
 
-          <!-- แสดงราคาซื้อ (สีเขียว) -->
-          <td class="text-success">
+        <!-- กำลังโหลด -->
+        <tr v-if="loading">
+          <td colspan="3">
+            กำลังโหลดข้อมูล...
+          </td>
+        </tr>
+
+        <!-- แสดงข้อมูล -->
+        <tr
+          v-for="item in golds"
+          :key="item.name"
+        >
+          <td>
+            {{ item.name }}
+          </td>
+
+          <td class="text-success fw-bold">
             {{ formatNumber(item.buy) }} บาท
           </td>
 
-          <!-- แสดงราคาขาย (สีแดง) -->
-          <td class="text-danger">
+          <td class="text-danger fw-bold">
             {{ formatNumber(item.sell) }} บาท
           </td>
-
         </tr>
+
       </tbody>
 
     </table>
+
   </div>
 </template>
 
+
 <script setup>
-// import ฟังก์ชันจาก Vue 3
+
 import { ref, onMounted } from 'vue'
 
-// ตัวแปรเก็บข้อมูลราคาทอง (reactive)
+// เก็บข้อมูลราคาทอง
 const golds = ref([])
 
-// ฟังก์ชันดึงข้อมูล API
-const fetchGold = async () => {
-  try {
-    // เรียก API
-    const res = await fetch('https://api.chnwt.dev/thai-gold-api/latest')
+// สถานะ Loading
+const loading = ref(false)
 
-    // แปลง response เป็น JSON
+// เก็บข้อความ Error
+const errorMessage = ref('')
+
+
+// ดึงข้อมูล API
+const fetchGold = async () => {
+
+  loading.value = true
+  errorMessage.value = ''
+
+  try {
+
+    const res = await fetch(
+      'https://api.chnwt.dev/thai-gold-api/latest'
+    )
+
+    if (!res.ok) {
+      throw new Error('ไม่สามารถโหลดข้อมูลได้')
+    }
+
     const data = await res.json()
 
-    // เข้าถึงข้อมูล price
     const price = data.response.price
 
-    // แปลงข้อมูลจาก object → array เพื่อใช้กับ v-for
     golds.value = [
+
+      // ทองรูปพรรณ
       {
-        name: "ทองรูปพรรณ",
-        // API เป็น string มี comma → ต้องลบ comma แล้วแปลงเป็นตัวเลข
-        buy: parseFloat(price.gold.buy.replace(/,/g, "")),
-        sell: parseFloat(price.gold.sell.replace(/,/g, ""))
+        name: 'ทองรูปพรรณ',
+
+        buy: parseFloat(
+          price.gold.buy.replace(/,/g, '')
+        ),
+
+        sell: parseFloat(
+          price.gold.sell.replace(/,/g, '')
+        )
       },
+
+      // ทองคำแท่ง
       {
-        name: "ทองคำแท่ง",
-        buy: parseFloat(price.gold_bar.buy.replace(/,/g, "")),
-        sell: parseFloat(price.gold_bar.sell.replace(/,/g, ""))
+        name: 'ทองคำแท่ง',
+
+        buy: parseFloat(
+          price.gold_bar.buy.replace(/,/g, '')
+        ),
+
+        sell: parseFloat(
+          price.gold_bar.sell.replace(/,/g, '')
+        )
       }
+
     ]
 
   } catch (error) {
-    // แสดง error ถ้าโหลดไม่สำเร็จ
-    console.error("โหลดข้อมูลผิดพลาด:", error)
+
+    console.error(
+      'โหลดข้อมูลผิดพลาด:',
+      error
+    )
+
+    errorMessage.value =
+      'ไม่สามารถโหลดราคาทองได้ กรุณาลองใหม่อีกครั้ง'
+
+  } finally {
+
+    loading.value = false
+
   }
 }
 
-// ฟังก์ชัน format ตัวเลขให้มี comma
+
+// จัดรูปแบบตัวเลข
 const formatNumber = (num) => {
-  return num.toLocaleString()
+
+  if (num === null || num === undefined || Number.isNaN(num)) {
+    return '-'
+  }
+
+  return num.toLocaleString('th-TH')
+
 }
 
-// เรียกใช้งานตอน component โหลดเสร็จ
-onMounted(fetchGold)
+
+// โหลดข้อมูลทันทีเมื่อเปิดหน้า
+onMounted(() => {
+  fetchGold()
+})
+
 </script>
